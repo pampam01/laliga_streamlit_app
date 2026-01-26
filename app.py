@@ -356,7 +356,7 @@ MATCHES_PLAYED_AUTO = infer_matches_played(matches_std)
 # =============================================================================
 # STREAMLIT UI
 # =============================================================================
-st.title("📊 Forecasting Posisi Tim per Matchday (Backend CSV)")
+st.title("📊 Forecasting Posisi Tim per Matchday")
 
 # Sidebar controls
 with st.sidebar:
@@ -451,7 +451,7 @@ st.dataframe(table_q.head(10), use_container_width=True)
 
 csv_out = table_q.to_csv(index=False).encode("utf-8")
 st.download_button(
-    "⬇️ Download Tabel Matchday (CSV)",
+    "⬇️ Download Tabel Matchda",
     data=csv_out,
     file_name=f"table_matchday_{int(MATCHDAY_QUERY)}.csv",
     mime="text/csv",
