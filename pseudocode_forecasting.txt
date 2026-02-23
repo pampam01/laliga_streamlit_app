@@ -1,0 +1,108 @@
+PSEUDOCODE: LaLiga Matchday Forecasting (Streamlit App)
+CONSTANTS:
+    CANDIDATE_MODEL_PATHS = ["data/models/laliga_forecast_model.joblib", "laliga_forecast_model.joblib"]
+    TOTAL_MATCHES_DEFAULT = 38
+FUNCTION _norm_team(team_name):
+    RETURN cleansed string (lowercase, alphanumeric only) from team_name
+
+FUNCTION load_joblib_model():
+    FOR EACH path IN CANDIDATE_MODEL_PATHS:
+        IF path exists:
+            RETURN joblib.load(path)
+    SEARCH for any "*.joblib" file in directory
+    IF found:
+        RETURN joblib.load(first_found_file)
+    ELSE:
+        RAISE FileNotFoundError
+FUNCTION _extract_team_list(model_obj):
+    # Try to find team list in model attributes (e.g., 'teams', 'classes_', 'club_list')
+    IF model_obj has attribute "teams" or similar:
+        RETURN list of teams
+    RETURN None
+
+FUNCTION _rank_from_table(df_table, club, matchday):
+    # Helper to find a specific club's rank within a full standing table
+    VALIDATE df_table is DataFrame
+    FIND column for Team Name
+    FIND column for Rank
+    
+    NORMALIZE team names in df_table
+    SEARCH for normalized 'club' in df_table
+    IF not found:
+        RAISE ValueError
+    
+    RETURN Rank, MetaData (Points, GoalDifference)
+
+FUNCTION _call_predict_rank(model_obj, club, matchday):
+    # Interface Adapter
+    IF model_obj has method "predict_rank":
+        CALL model_obj.predict_rank(club, matchday)
+        RETURN Rank, MetaData
+    
+    ELSE IF model_obj has method "predict_table":
+        CALL model_obj.predict_table(matchday) -> df_table
+        CALL _rank_from_table(df_table, club, matchday)
+        RETURN Rank, MetaData
+    
+    ELSE:
+        RAISE TypeError("Model interface not recognized")
+
+FUNCTION _build_timeline(model_obj, club):
+    INITIALIZE empty list 'records'
+    FOR matchday FROM 1 TO 38:
+        TRY:
+            CALL _call_predict_rank(model_obj, club, matchday) -> Rank, Meta
+            APPEND {Matchday, Rank, Points, GD} to 'records'
+        CATCH errors:
+            CONTINUE
+    RETURN DataFrame from 'records'
+
+# --- MAIN PROGRAM FLOW ---
+
+BEGIN:
+    SETUP Streamlit page config (Title, Layout)
+    
+    TRY:
+        model = CALL load_joblib_model()
+    CATCH Error:
+        DISPLAY Error Message
+        STOP
+
+    teams = CALL _extract_team_list(model)
+    
+    # UI INPUTS
+    DISPLAY Column Layout (Left, Right)
+    IF teams exists:
+        INPUT club = SelectBox(teams, default="Real Madrid")
+    ELSE:
+        INPUT club = TextInput(default="Real Madrid")
+        
+    INPUT matchday = NumberInput(1 to 38, default=15)
+    
+    IF Button("Forecast") IS CLICKED:
+        TRY:
+            # 1. Single Point Forecast
+            rank, meta = CALL _call_predict_rank(model, club, matchday)
+            
+            DISPLAY Header "Hasil Forecast"
+            DISPLAY Metric "Rank" with value rank
+            DISPLAY Text details (Points, GD)
+            
+            # 2. Timeline Visualization
+            DISPLAY Section "Visualisasi Tren"
+            timeline_df = CALL _build_timeline(model, club)
+            
+            IF timeline_df is valid:
+                PLOT Line Chart (X=Matchday, Y=Rank [Inverted])
+                PLOT Line Chart (X=Matchday, Y=Points)
+            
+            # 3. Full Table Display (New Feature)
+            IF model has method "predict_table":
+                DISPLAY Header "Klasemen Prediksi Pekan {matchday}"
+                df_table = CALL model.predict_table(matchday)
+                DISPLAY Dataframe df_table
+                
+        CATCH Exception:
+            DISPLAY Error Message
+
+END
